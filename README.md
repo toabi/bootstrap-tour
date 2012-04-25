@@ -56,7 +56,11 @@ Bootstrap Tour is inspired by [Joyride](http://www.zurb.com/playground/jquery-jo
 	  'cookieMonster': true,           // true/false for whether cookies are used
 	  'cookieName': 'myHomepageTour',  // choose your own cookie name
 	  'cookieDomain': false,           // set to false or yoursite.com
-	  'tipContent': '#tourContent'     // The ID of the <ol> used for content
+	  'tipContent': '#tourContent',    // The ID of the <ol> used for content
+	  'postRideCallback': $.noop,      // A method to call once the tour closes
+      'postStepCallback': $.noop,      // A method to call after each step
+      'nextOnClose': false,            // If cookies are enabled, increment the current step on close
+      'debug': false
 	});
 
 ## GILD

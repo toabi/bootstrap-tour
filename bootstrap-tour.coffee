@@ -1,4 +1,4 @@
-# bootstrap-tour.js v0.0.1
+# bootstrap-tour.js v0.0.2
 # Copyright 2012 Gild, Inc.
 #
 # Free to use under the MIT license.
@@ -7,39 +7,41 @@
 # References jQuery
 $ = jQuery
 
+# based on jQuery Cookie plugin
+# Copyright (c) 2010 Klaus Hartl (stilbuero.de)
+# Dual licensed under the MIT and GPL licenses:
+# http://www.opensource.org/licenses/mit-license.php
+# http://www.gnu.org/licenses/gpl.html
+cookie = (key, value, options) ->
+  if arguments.length > 1 and String(value) isnt "[object Object]"
+    options = jQuery.extend({}, options)
+    options.expires = -1 unless value?
+    if typeof options.expires is "number"
+      days = options.expires
+      t = options.expires = new Date()
+      t.setDate t.getDate() + days
+    value = String(value)
+    return (document.cookie = [ encodeURIComponent(key), "=", (if options.raw then value else encodeURIComponent(value)), (if options.expires then "; expires=" + options.expires.toUTCString() else ""), (if options.path then "; path=" + options.path else ""), (if options.domain then "; domain=" + options.domain else ""), (if options.secure then "; secure" else "") ].join(""))
+  options = value or {}
+  result = undefined
+  decode = (if options.raw then (s) ->
+    s
+  else decodeURIComponent)
+  return (if (result = new RegExp("(?:^|; )" + encodeURIComponent(key) + "=([^;]*)").exec(document.cookie)) then decode(result[1]) else null)
+
 # Adds plugin object to jQuery
 $.fn.extend {}=
 
   featureTour: (options) ->
-
-    # based on jQuery Cookie plugin
-    # Copyright (c) 2010 Klaus Hartl (stilbuero.de)
-    # Dual licensed under the MIT and GPL licenses:
-    # http://www.opensource.org/licenses/mit-license.php
-    # http://www.gnu.org/licenses/gpl.html
-    cookie = (key, value, options) ->
-      if arguments.length > 1 and String(value) isnt "[object Object]"
-        options = jQuery.extend({}, options)
-        options.expires = -1 unless value?
-        if typeof options.expires is "number"
-          days = options.expires
-          t = options.expires = new Date()
-          t.setDate t.getDate() + days
-        value = String(value)
-        return (document.cookie = [ encodeURIComponent(key), "=", (if options.raw then value else encodeURIComponent(value)), (if options.expires then "; expires=" + options.expires.toUTCString() else ""), (if options.path then "; path=" + options.path else ""), (if options.domain then "; domain=" + options.domain else ""), (if options.secure then "; secure" else "") ].join(""))
-      options = value or {}
-      result = undefined
-      decode = (if options.raw then (s) ->
-        s
-      else decodeURIComponent)
-      return (if (result = new RegExp("(?:^|; )" + encodeURIComponent(key) + "=([^;]*)").exec(document.cookie)) then decode(result[1]) else null)
-
     # Default settings
     settings =
       tipContent: '#featureTourTipContent' # What is the ID of the <ol> you put the content in
       cookieMonster: false                 # true or false to control whether cookies are used
       cookieName: 'bootstrapFeatureTour'   # Name the cookie you'll use
       cookieDomain: false                  # Will this cookie be attached to a domain, ie. '.mydomain.com'
+      postRideCallback: $.noop             # A method to call once the tour closes
+      postStepCallback: $.noop             # A method to call after each step
+      nextOnClose: false                   # If cookies are enabled, increment the current step on close
       debug: false
       
     # Merge default settings with options.
@@ -47,16 +49,45 @@ $.fn.extend {}=
     
     # Simple logger.
     log = (msg) ->
-      console?.log msg if settings.debug
+      console?.log('[bootstrap-tour]', msg) if settings.debug
     
+    # returns current step stored in the cookie, or `1` if cookie disabled, no
+    # cookie or invalid cookie value
+    currentStep = ->
+      return 1 unless settings.cookieMonster?
+      current_cookie = cookie(settings.cookieName)
+      # start from step 1 if there's no cookie set
+      return 1 unless current_cookie?
+      try
+        return parseInt(current_cookie)
+      catch e
+        # start from step 1 if there cookie is invalid
+        return 1
+
+    setCookieStep = (step) ->
+      cookie(settings.cookieName, "#{step}", { expires: 365, domain: settings.cookieDomain }) if settings.cookieMonster
+
     return @each () ->
-      return if settings.cookieMonster && cookie(settings.cookieName)?
 
       $tipContent = $(settings.tipContent).first()
-      return unless $tipContent?
+      unless $tipContent?
+        log "can't find tipContent from selector: #{settings.tipContent}"
       
       $tips = $tipContent.find('li')
+
+      first_step = currentStep()
+      log "first step: #{first_step}"
+
+      if first_step > $tips.length
+        log 'tour already completed, skipping'
+        return 
+
       $tips.each (idx) ->
+        # skip steps until we reach the first one
+        if idx < (first_step - 1)
+          log "skipping step: #{idx + 1}"
+          return
+
         $li = $(@)
         tip_data = $li.data()
         return unless (target = tip_data['target'])?
@@ -72,18 +103,24 @@ $.fn.extend {}=
         $li.data('target', $target)
         
         # show the first tip
-        $target.popover('show') if idx == 0
+        $target.popover('show') if idx == (first_step - 1)
 
       # handle the close button
       $('a.tour-tip-close').live 'click', ->
-        $(settings.tipContent).first().find("li:nth-child(#{$(@).data('touridx')})").data('target').popover('hide')
+        current_step = $(@).data('touridx')
+        $(settings.tipContent).first().find("li:nth-child(#{current_step})").data('target').popover('hide')
+        setCookieStep(current_step + 1) if settings.nextOnClose
 
       # handle the next and done buttons
       $('a.tour-tip-next').live 'click', ->
-        $(settings.tipContent).first().find("li:nth-child(#{$(@).data('touridx')})").data('target').popover('hide')
-        next_tip = $(settings.tipContent).first().find("li:nth-child(#{$(@).data('touridx') + 1})")?.data('target')
+        current_step = $(@).data('touridx')
+        log "current step: #{current_step}"
+        $(settings.tipContent).first().find("li:nth-child(#{current_step})").data('target').popover('hide')
+        settings.postStepCallback($(@).data('touridx')) if settings.postStepCallback != $.noop
+        next_tip = $(settings.tipContent).first().find("li:nth-child(#{current_step + 1})")?.data('target')
+        setCookieStep(current_step + 1)
         if next_tip?
           next_tip.popover('show')
         else
           # last tip
-          cookie(settings.cookieName, 'ridden', { expires: 365, domain: settings.cookieDomain }) if settings.cookieMonster
+          settings.postRideCallback() if settings.postRideCallback != $.noop 
