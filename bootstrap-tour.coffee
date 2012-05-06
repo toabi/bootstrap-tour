@@ -29,6 +29,15 @@ cookie = (key, value, options) ->
   else decodeURIComponent)
   return (if (result = new RegExp("(?:^|; )" + encodeURIComponent(key) + "=([^;]*)").exec(document.cookie)) then decode(result[1]) else null)
 
+i18n = {
+  en:
+    next: 'Next'
+    done: 'Done'
+  de:
+    next: 'Weiter'
+    done: 'Fertig'
+}
+
 # Adds plugin object to jQuery
 $.fn.extend {}=
 
@@ -42,7 +51,8 @@ $.fn.extend {}=
       postRideCallback: $.noop             # A method to call once the tour closes
       postStepCallback: $.noop             # A method to call after each step
       nextOnClose: false                   # If cookies are enabled, increment the current step on close
-      debug: false
+      debug: false                         # Print some debugging information
+      language: 'en'                       # Set to a key in the i18n object to change the langauge on the buttons
       
     # Merge default settings with options.
     settings = $.extend settings, options
@@ -95,8 +105,13 @@ $.fn.extend {}=
         
         $target.popover
           trigger: 'manual'
-          title: if tip_data['title']? then "#{tip_data['title']} <a class=\"tour-tip-close close\" data-touridx=\"#{idx + 1}\">&times;</a>" else null
-          content: "<p>#{$li.html()}</p><p style=\"text-align: right\"><a href=\"#\" class=\"tour-tip-next btn btn-success\" data-touridx=\"#{idx + 1}\">#{if (idx + 1) < $tips.length then 'Next <i class="icon-chevron-right icon-white"></i>' else '<i class="icon-ok icon-white"></i> Done'}</a></p>"
+          title: if tip_data['title']? then """#{tip_data['title']} <a class="tour-tip-close close" data-touridx="#{idx + 1}">&times;</a>""" else null
+          content: """<p>#{$li.html()}</p>
+                      <p style="text-align: right">
+                        <a href="#" class="tour-tip-next btn btn-success" data-touridx="#{idx + 1}">
+                        #{if (idx + 1) < $tips.length then i18n[settings.language].next + '<i class="icon-chevron-right icon-white"></i>' else '<i class="icon-ok icon-white"></i> ' + i18n[settings.language].done}
+                        </a>
+                      </p>"""
           placement: tip_data['placement'] || 'right'
         
         # save the target element in the tip node

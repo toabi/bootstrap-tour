@@ -60,6 +60,7 @@ Bootstrap Tour is inspired by [Joyride](http://www.zurb.com/playground/jquery-jo
 	  'postRideCallback': $.noop,      // A method to call once the tour closes
       'postStepCallback': $.noop,      // A method to call after each step
       'nextOnClose': false,            // If cookies are enabled, increment the current step on close
+      'language': 'en',                // Set the language of the next/done button
       'debug': false
 	});
 
